@@ -34,7 +34,7 @@ const u8 message[] = {
         " " \
         " " \
         "         " \
-        "CODE/GFX: VIOLATOR MUSIC: MUZTANGER " \
+        "CODE/GFX: VIOLATOR MUSIC: GEMINI " \
 };
 
 u16 stretch = 0;
@@ -173,7 +173,7 @@ int main(void) {
     // Start module playback
     mmInitDefault((mm_addr) music_bin, 8);
     mmSetEventHandler(songEventHandler);
-    mmStart(MOD_MUZ_RGGWL, MM_PLAY_LOOP);
+    mmStart(MOD_GMN_MYTL, MM_PLAY_LOOP);
 
     // Set graphics mode
     SetMode(MODE_0 | BG0_ON | BG1_ON | BG2_ON | BG3_ON | OBJ_ON | OBJ_1D_MAP);
