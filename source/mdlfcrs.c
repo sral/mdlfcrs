@@ -1,5 +1,6 @@
 #include <gba.h>
 #include <maxmod.h>
+#include <stdbool.h>
 
 #include "fixed.h"
 #include "lut.h"
@@ -74,7 +75,7 @@ inline void copy_buffer_to_OAM(const OBJATTR *buf) {
     u32 ii;
     temp_oam_ptr = OAM;
     for (ii = 0; ii < 128; ++ii) {
-        *temp_oam_ptr++ = buf[ii];
+        *(OBJATTR *) temp_oam_ptr++ = buf[ii];
     }
 }
 
@@ -84,11 +85,11 @@ void create_bg_tilemap(u16 map_base, u32 first_chrs, u32 second_chrs) {
     for (ii = 0; ii < 12; ++ii) {
         for (jj = 0; jj < 16; ++jj) {
             if (ii & 1) {
-                *map_ptr++ = first_chrs;
-                *map_ptr++ = second_chrs;
+                *(u32 *) map_ptr++ = first_chrs;
+                *(u32 *) map_ptr++ = second_chrs;
             } else {
-                *map_ptr++ = second_chrs;
-                *map_ptr++ = first_chrs;
+                *(u32 *) map_ptr++ = second_chrs;
+                *(u32 *) map_ptr++ = first_chrs;
             }
         }
     }
@@ -102,7 +103,7 @@ inline void update_scroll_text(u32 idx) {
         if (message[idx] == 0) {
             idx = 0;
         }
-        *map_ptr++ = message[idx++];
+        *(u16 *) map_ptr++ = message[idx++];
     }
 }
 
@@ -140,7 +141,7 @@ int main(void) {
     u16 *map_ptr = (u16 *) MAP_BASE_ADR(30), *data_ptr = (u16 *) logo_map_bin;
     for (ii = 0; ii < 20; ++ii) {
         for (jj = 0; jj < 30; ++jj) {
-            *map_ptr++ = *data_ptr++;
+            *(u16 *) map_ptr++ = *(u16 *) data_ptr++;
         }
         map_ptr += 2;
     }
@@ -171,8 +172,9 @@ int main(void) {
     BGCTRL[3] = BG_MAP_BASE(28) | TILE_BASE(2);
 
     // Start module playback
-    mmInitDefault((mm_addr) music_bin, 8);
+    mmInitDefault((mm_addr) music_bin, 6);
     mmSetEventHandler(songEventHandler);
+    mmSetModuleVolume(1024);
     mmStart(MOD_GMN_MYTL, MM_PLAY_LOOP);
 
     // Set graphics mode
