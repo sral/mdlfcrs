@@ -32,8 +32,18 @@ const u8 message[] = {
         "AND A LOT CHEAPER THAN BUYING A MOTORBIKE I GUESS. " \
         "         " \
         "ANYWAYS... THREE RELEASES IN 2015 SO FAR! " \
-        " " \
-        " " \
+        "         " \
+        "HUGE THANKS TO GEMINI FOR STEPPING UP AND " \
+        "CREATING THE AWESOME MUSIC YOU'RE HEARING. " \
+        "SO DO TURN UP THE VOLUME. " \
+        "         " \
+        "HEY MR. ZM WHAT'S UP?! I WISH I COULD " \
+        "ADVERTISE A BBS OF YOURS BUT I GUESS " \
+        "THE TIMES THEY ARE A-CHANGIN'. " \
+        "THE SAME GOES FOR YOU R\x8fNALD MCD\x8fNALD. " \
+        "SEE YOU AT THE PUB." \
+        "      " \
+        "FUSE! SPECTRE! YOU GUYS ROCK; AS ALWAYS! " \
         "         " \
         "CODE/GFX: VIOLATOR MUSIC: GEMINI " \
 };
@@ -180,7 +190,8 @@ int main(void) {
     // Set graphics mode
     SetMode(MODE_0 | BG0_ON | BG1_ON | BG2_ON | BG3_ON | OBJ_ON | OBJ_1D_MAP);
 
-    u16 frame_count = 0, m_index = 0, x_scroll = 0, x_bg2 = 0, x_bg3 = 0, theta = 45;
+    u16 frame_count = 0, x_scroll = 0, x_bg2 = 0, x_bg3 = 0, theta = 45;
+    u32 m_index = 0;
     while (true) {
         VBlankIntrWait();
         mmFrame();
@@ -203,7 +214,7 @@ int main(void) {
                 } else {
                     ++m_index;
                 }
-                update_scroll_text((u32) m_index);
+                update_scroll_text(m_index);
             }
             BG_OFFSET[0].x = x_scroll++;
             BG_OFFSET[2].x = x_bg2--;
