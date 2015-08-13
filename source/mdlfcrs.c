@@ -20,6 +20,7 @@
 #define MAP_SIZE            0x800
 #define SCROLLER_ROW        18
 #define MOSAIC_EFFECT       1
+#define FADE_FRAMES         50
 
 const u8 message[] = {
         "                                " \
@@ -50,46 +51,49 @@ const u8 message[] = {
 
 u16 stretch = 0;
 OBJATTR obj_buffer[128];
+s16 current_palette[512*3];
+s16 fade_deltas[512*3];
 
-void init_OAM() {
+
+void initOAM() {
     u16 ii;
     for (ii = 0; ii < 128; ++ii) {
         obj_buffer[ii].attr0 = OBJ_DISABLE;
     }
 }
 
-void update_sprites_pos(u16 theta) {
-    u16 ii;
+void updateSpritesPos(u16 theta) {
+    u32 s_index;
     s16 x, y, offset;
     s32 sin, cos;
     // Piece of crap, should be cleaned up... makes me sad...
-    for (ii = 0; ii < NUMBER_OF_SPRITES; ++ii) {
+    for (s_index = 0; s_index < NUMBER_OF_SPRITES; ++s_index) {
         // Table has 512 entries, use bitmask for wrapping
-        offset = ii * 10;
+        offset = s_index * 10;
         sin = sin_lut[(theta + offset) & 0x1FF];
-        //theta += 90;  // Use same LUT, shift to get cosine
+        // Use same LUT, shift to get cosine
         cos = sin_lut[(theta + offset + 90) & 0x1FF];
         x = fx2int(fxmul(cos, int2fx(SCREEN_WIDTH)));
         y = fx2int(fxmul(sin, int2fx(SCREEN_HEIGHT)));
         // Scale x to [0, 240] and y to [0, 160]
         x = ((x + SCREEN_WIDTH) >> 1);
         y = ((y + SCREEN_HEIGHT) >> 1);
-        obj_buffer[ii].attr0 = OBJ_256_COLOR | ATTR0_SQUARE | OBJ_Y(y);
-        obj_buffer[ii].attr1 = OBJ_SIZE(Sprite_32x32) | OBJ_X(x);
-        obj_buffer[ii].attr2 = OBJ_CHAR((ii * 32) % 160) | OBJ_SQUARE;
+        obj_buffer[s_index].attr0 = OBJ_256_COLOR | ATTR0_SQUARE | OBJ_Y(y);
+        obj_buffer[s_index].attr1 = OBJ_SIZE(Sprite_32x32) | OBJ_X(x);
+        obj_buffer[s_index].attr2 = OBJ_CHAR((s_index * 32) % 160) | OBJ_SQUARE;
     }
 }
 
-inline void copy_buffer_to_OAM(const OBJATTR *buf) {
+inline void copyBufferToOAM(const OBJATTR *buf) {
     OBJATTR *temp_oam_ptr;
-    u32 ii;
+    u32 oam_index;
     temp_oam_ptr = OAM;
-    for (ii = 0; ii < 128; ++ii) {
-        *(OBJATTR *) temp_oam_ptr++ = buf[ii];
+    for (oam_index = 0; oam_index < 128; ++oam_index) {
+        *(OBJATTR *) temp_oam_ptr++ = buf[oam_index];
     }
 }
 
-void create_bg_tilemap(u16 map_base, u32 first_chrs, u32 second_chrs) {
+void createBgTilemap(u16 map_base, u32 first_chrs, u32 second_chrs) {
     u16 ii, jj;
     u32 *map_ptr = (u32 *) MAP_BASE_ADR(map_base);
     for (ii = 0; ii < 12; ++ii) {
@@ -105,15 +109,53 @@ void create_bg_tilemap(u16 map_base, u32 first_chrs, u32 second_chrs) {
     }
 }
 
-inline void update_scroll_text(u32 idx) {
-    u32 ii;
+inline void updateScrollText(u32 m_index) {
     u16 *map_ptr;
     map_ptr = (u16 *) MAP_BASE_ADR(31) + (SCROLLER_ROW * 32);
+    u32 ii;
     for (ii = 0; ii < 32; ++ii) {
-        if (message[idx] == 0) {
-            idx = 0;
+        if (message[m_index] == 0) {
+            m_index = 0;
         }
-        *(u16 *) map_ptr++ = message[idx++];
+        *(u16 *) map_ptr++ = message[m_index++];
+    }
+}
+
+inline void buildFadeDeltas() {
+    u16 *pal_bin_ptr = (u16 *) logo_pal_bin;
+    s16 *fade_dlts_ptr = fade_deltas;
+    s16 color, r, g, b;
+    u32 p_index;
+    for (p_index = 0; p_index < (logo_pal_bin_size / 2); ++p_index) {
+        color = *(u16 *) pal_bin_ptr++;
+        r = (color & 0x1f);
+        g = (color >> 5 & 0x1f);
+        b = (color >> 10 & 0x1f);
+
+        * (s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) r) / FADE_FRAMES;
+        * (s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) g) / FADE_FRAMES;
+        * (s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) b) / FADE_FRAMES;
+    }
+}
+
+inline void fade() {
+    u16 *pal_ptr = BG_PALETTE;
+    s16 *current_pal_ptr = current_palette;
+    s16 *fade_dlts_ptr = fade_deltas;
+    s16 color, r, g, b;
+    u32 p_index;
+    for (p_index = 0; p_index < (logo_pal_bin_size / 2); ++p_index) {
+        // Add delta and update current palette
+        r = *(s16 *) current_pal_ptr;
+        *(s16 *) current_pal_ptr++ = r + *(s16 *) fade_dlts_ptr++;
+        g = *(s16 *) current_pal_ptr;
+        *(s16 *) current_pal_ptr++ = g + *(s16 *) fade_dlts_ptr++;
+        b = *(s16 *) current_pal_ptr;
+        *(s16 *) current_pal_ptr++ = b + *(s16 *) fade_dlts_ptr++;
+
+        // Write color out
+        color = (fx2int((s32) r) | (fx2int((s32) g) << 5) | (fx2int((s32) b) << 10));
+        *(u16 *) pal_ptr++ = color;
     }
 }
 
@@ -138,7 +180,7 @@ int main(void) {
     irqSet(IRQ_VBLANK, mmVBlank);
     irqEnable(IRQ_VBLANK);
 
-    CpuFastSet(logo_pal_bin, BG_PALETTE, (logo_pal_bin_size / 4) | COPY32);
+    //CpuFastSet(logo_pal_bin, BG_PALETTE, (logo_pal_bin_size / 4) | COPY32);
     CpuFastSet(sprites_pal_bin, SPRITE_PALETTE, (sprites_pal_bin_size / 4) | COPY32);
 
     CpuFastSet(font_bin, (u16 *) VRAM, (font_bin_size / 4) | COPY32);
@@ -157,15 +199,15 @@ int main(void) {
     }
 
     // Generate checkerboard tilemaps for background
-    create_bg_tilemap((u16) 29, 0x00000000, 0x00020002);
-    create_bg_tilemap((u16) 28, 0x10011001, 0x10021002);
+    createBgTilemap((u16) 29, 0x00000000, 0x00020002);
+    createBgTilemap((u16) 28, 0x10011001, 0x10021002);
 
     // Clear font tilemap using tile 0x20 (space)
     *((u32 *) MAP_BASE_ADR(31)) = 0x00200020;
     CpuFastSet(MAP_BASE_ADR(31), MAP_BASE_ADR(31), FILL | COPY32 | (MAP_SIZE / 4));
 
     // Disable all sprites
-    init_OAM();
+    initOAM();
 
     // Init scroll register
     BG_OFFSET[0].x = 0;
@@ -191,12 +233,20 @@ int main(void) {
     SetMode(MODE_0 | BG0_ON | BG1_ON | BG2_ON | BG3_ON | OBJ_ON | OBJ_1D_MAP);
 
     u16 frame_count = 0, x_scroll = 0, x_bg2 = 0, x_bg3 = 0, theta = 45;
-    u32 m_index = 0;
+    u32 m_index = 0, fade_count = 0;
+
+    buildFadeDeltas();
+
     while (true) {
         VBlankIntrWait();
         mmFrame();
 
-        update_sprites_pos(theta);
+        if (fade_count < FADE_FRAMES) {
+            fade();
+            ++fade_count;
+        }
+
+        updateSpritesPos(theta);
         --theta;
 
         if (stretch > 0) {
@@ -205,7 +255,7 @@ int main(void) {
         // Set horizontal and vertical stretch
         REG_MOSAIC = (stretch << 4) | stretch;
 
-        copy_buffer_to_OAM(obj_buffer);
+        copyBufferToOAM(obj_buffer);
         if (frame_count & 1) {
             x_scroll &= 0x7;  // Wrap on tile width - 1
             if (!x_scroll) {
@@ -214,7 +264,7 @@ int main(void) {
                 } else {
                     ++m_index;
                 }
-                update_scroll_text(m_index);
+                updateScrollText(m_index);
             }
             BG_OFFSET[0].x = x_scroll++;
             BG_OFFSET[2].x = x_bg2--;
