@@ -132,9 +132,9 @@ inline void buildFadeDeltas() {
         g = (color >> 5 & 0x1f);
         b = (color >> 10 & 0x1f);
 
-        * (s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) r) / FADE_FRAMES;
-        * (s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) g) / FADE_FRAMES;
-        * (s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) b) / FADE_FRAMES;
+        *(s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) r) / FADE_FRAMES;
+        *(s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) g) / FADE_FRAMES;
+        *(s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) b) / FADE_FRAMES;
     }
 }
 
