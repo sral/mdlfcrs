@@ -180,13 +180,12 @@ int main(void) {
     irqSet(IRQ_VBLANK, mmVBlank);
     irqEnable(IRQ_VBLANK);
 
-    //CpuFastSet(logo_pal_bin, BG_PALETTE, (logo_pal_bin_size / 4) | COPY32);
-    CpuFastSet(sprites_pal_bin, SPRITE_PALETTE, (sprites_pal_bin_size / 4) | COPY32);
-
-    CpuFastSet(font_bin, (u16 *) VRAM, (font_bin_size / 4) | COPY32);
-    CpuFastSet(sprites_bin, SPRITE_GFX, (sprites_bin_size / 4) | COPY32);
-    CpuFastSet(logo_bin, (u16 *) TILE_BASE_ADR(1), (logo_bin_size / 4) | COPY32);
-    CpuFastSet(background_bin, (u16 *) TILE_BASE_ADR(2), (background_bin_size / 4) | COPY32);
+    //Load gfx data
+    LZ77UnCompVram((void *) sprites_pal_bin, (void *) SPRITE_PALETTE);
+    LZ77UnCompVram((void *) font_bin, (void *) VRAM);
+    LZ77UnCompVram((void *) sprites_bin, (void *) SPRITE_GFX);
+    LZ77UnCompVram((void *) logo_bin, (void *) TILE_BASE_ADR(1));
+    RLUnCompVram((void *) background_bin, (void *) TILE_BASE_ADR(2));
 
     //Load tilemap for logo (30x20)
     u16 ii, jj;
