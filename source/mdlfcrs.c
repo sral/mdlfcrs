@@ -15,12 +15,12 @@
 #include "music.h"
 #include "music_bin.h"
 
-#define NUMBER_OF_SPRITES   21
-#define MAP_SIZE            0x800
-#define SCROLLER_ROW        18
-#define MOSAIC_EFFECT       1
-#define FADE_EFFECT         2
-#define FADE_FRAMES         50
+#define NUMBER_OF_SPRITES       21 * 2
+#define MAP_SIZE                0x800
+#define SCROLLER_ROW            18
+#define FADE_FRAMES             50
+#define HIHAT_SYNC              1
+#define PATTERN_CHANGE_SYNC     2
 
 const u8 message[] = {
         "                                " \
@@ -49,33 +49,35 @@ const u8 message[] = {
         "CODE/GFX: VIOLATOR MUSIC: GEMINI " \
 };
 
-u16 stretch = 0;
+u16 sync_offset = 0;
 OBJATTR obj_buffer[128];
 s16 current_palette[512 * 3];
 s16 fade_deltas[512 * 3];
 
 void initOAM() {
-    u32 ii, c_index = 0, palbank = 0;
-    for (ii = 0; ii < 128; ++ii) {
-        obj_buffer[ii].attr0 = OBJ_DISABLE;
-        obj_buffer[ii].attr2 = OBJ_CHAR(c_index) | ATTR2_PALETTE(palbank) | OBJ_SQUARE;
+    u32 s_index, c_index = 0, palbank = 0;
+    for (s_index = 0; s_index < NUMBER_OF_SPRITES; s_index += 2) {
+        // Pyramid
+        obj_buffer[s_index].attr0 = OBJ_DISABLE;
+        obj_buffer[s_index].attr2 = OBJ_CHAR(c_index) | ATTR2_PALETTE(palbank) | OBJ_SQUARE;
+        // Shadow
+        obj_buffer[s_index + 1].attr2 = OBJ_CHAR(48) | ATTR2_PALETTE(0) | OBJ_SQUARE;
 
-        // Point to tiles and set palette bank
-        c_index += 16;
-        if (c_index >= 48) {
+        if (c_index < 32) {
+            c_index += 16;
+        } else {
             c_index = 0;
             palbank = (palbank + 1) & 0xf;
         }
     }
 }
 
-void updateSpritesPos(u16 theta) {
+inline void updateSpritesPos(u16 theta) {
     u32 s_index;
     s16 x, y, offset;
     s32 sin, cos;
-    // Piece of crap, should be cleaned up... makes me sad...
-    for (s_index = 0; s_index < NUMBER_OF_SPRITES; ++s_index) {
-        offset = s_index * 10;
+    for (s_index = 0; s_index < NUMBER_OF_SPRITES; s_index += 2) {
+        offset = s_index * 5;
         // Table has 512 entries, use bitmask for wrapping
         // Shift to get cosine
         sin = sin_lut[(theta + offset) & 0x1ff];
@@ -85,18 +87,19 @@ void updateSpritesPos(u16 theta) {
         // Scale x to [0, 240] and y to [0, 160]
         x = ((x + SCREEN_WIDTH) >> 1);
         y = ((y + SCREEN_HEIGHT) >> 1);
-        // Set values
+        // Pyramid
         obj_buffer[s_index].attr0 = OBJ_16_COLOR | ATTR0_SQUARE | OBJ_Y(y);
         obj_buffer[s_index].attr1 = OBJ_SIZE(Sprite_32x32) | OBJ_X(x);
+        // Shadow
+        obj_buffer[s_index + 1].attr0 = OBJ_Y(y + 5) | OBJ_16_COLOR | ATTR0_SQUARE;
+        obj_buffer[s_index + 1].attr1 = OBJ_SIZE(Sprite_32x32) | OBJ_X(x + 3);
     }
 }
 
 inline void copyBufferToOAM(const OBJATTR *buf) {
-    OBJATTR *temp_oam_ptr;
     u32 oam_index;
-    temp_oam_ptr = OAM;
     for (oam_index = 0; oam_index < 128; ++oam_index) {
-        *(OBJATTR *) temp_oam_ptr++ = buf[oam_index];
+        OAM[oam_index] = buf[oam_index];
     }
 }
 
@@ -166,10 +169,10 @@ mm_word songEventHandler(mm_word msg, mm_word param) {
     switch (msg) {
         case MMCB_SONGMESSAGE:
             switch (param) {
-                case MOSAIC_EFFECT:
-                    stretch = 15;
+                case HIHAT_SYNC:
+                    sync_offset = 15;
                     break;
-                case FADE_EFFECT:
+                case PATTERN_CHANGE_SYNC:
                     break;
             }
             break;
@@ -253,11 +256,11 @@ int main(void) {
         updateSpritesPos(theta);
         --theta;
 
-        if (stretch > 0) {
-            --stretch;
+        if (sync_offset > 0) {
+            --sync_offset;
         }
-        // Set horizontal and vertical stretch
-        REG_MOSAIC = (stretch << 4) | stretch;
+        // Set horizontal and vertical sync_offset
+        REG_MOSAIC = (sync_offset << 4) | sync_offset;
 
         copyBufferToOAM((OBJATTR *) obj_buffer);
         if (frame_count & 1) {
@@ -271,6 +274,7 @@ int main(void) {
                 updateScrollText(m_index);
             }
             BG_OFFSET[0].x = x_scroll++;
+            BG_OFFSET[0].y = sync_offset;
             BG_OFFSET[2].x = x_bg2--;
         }
         else if (frame_count & 3) {
