@@ -21,6 +21,7 @@
 #define FADE_FRAMES             50
 #define HIHAT_SYNC              1
 #define PATTERN_CHANGE_SYNC     2
+#define SPRITE_WIDTH            32
 
 const u8 message[] = {
         "                                " \
@@ -72,7 +73,7 @@ void initOAM() {
     }
 }
 
-inline void updateSpritesPos(u16 theta) {
+inline void updateSpritesPos(u32 theta, u32 theta_p) {
     u32 s_index;
     s16 x, y, offset;
     s32 sin, cos;
@@ -81,12 +82,13 @@ inline void updateSpritesPos(u16 theta) {
         // Table has 512 entries, use bitmask for wrapping
         // Shift to get cosine
         sin = sin_lut[(theta + offset) & 0x1ff];
-        cos = sin_lut[(theta + offset + 90) & 0x1ff];
-        x = fx2int(fxmul(cos, int2fx(SCREEN_WIDTH)));
-        y = fx2int(fxmul(sin, int2fx(SCREEN_HEIGHT)));
-        // Scale x to [0, 240] and y to [0, 160]
-        x = ((x + SCREEN_WIDTH) >> 1);
-        y = ((y + SCREEN_HEIGHT) >> 1);
+        cos = sin_lut[(theta_p + offset + 90) & 0x1ff];
+        // Subtract sprite width to keep sprites on screen
+        x = fx2int(fxmul(cos, int2fx(SCREEN_WIDTH - SPRITE_WIDTH)));
+        y = fx2int(fxmul(sin, int2fx(SCREEN_HEIGHT - SPRITE_WIDTH)));
+        // Scale x to [0, 240 - 32] and y to [0, 160 - 32]
+        x = ((x + SCREEN_WIDTH - SPRITE_WIDTH) >> 1);
+        y = ((y + SCREEN_HEIGHT - SPRITE_WIDTH) >> 1);
         // Pyramid
         obj_buffer[s_index].attr0 = OBJ_16_COLOR | ATTR0_SQUARE | OBJ_Y(y);
         obj_buffer[s_index].attr1 = OBJ_SIZE(Sprite_32x32) | OBJ_X(x);
@@ -96,7 +98,7 @@ inline void updateSpritesPos(u16 theta) {
     }
 }
 
-inline void copyBufferToOAM(const OBJATTR *buf) {
+inline void copyBufferToOAM(const OBJATTR buf[]) {
     u32 oam_index;
     for (oam_index = 0; oam_index < 128; ++oam_index) {
         OAM[oam_index] = buf[oam_index];
@@ -131,37 +133,36 @@ inline void updateScrollText(u32 m_index) {
     }
 }
 
-inline void buildFadeDeltas(u16 *pal_bin_ptr, s16 *fade_dlts_ptr, u32 pal_size) {
+inline void buildFadeDeltas(u16 pal_bin[], s16 fade_deltas[], u32 pal_size) {
     s16 color, r, g, b;
     u32 p_index;
     for (p_index = 0; p_index < (pal_size / 2); ++p_index) {
-        color = *(u16 *) pal_bin_ptr++;
+        color = *(u16 *) pal_bin++;
         r = (color & 0x1f);
         g = (color >> 5 & 0x1f);
         b = (color >> 10 & 0x1f);
 
-        *(s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) r) / FADE_FRAMES;
-        *(s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) g) / FADE_FRAMES;
-        *(s16 *) fade_dlts_ptr++ = (s16) int2fx((s32) b) / FADE_FRAMES;
+        *(s16 *) fade_deltas++ = (s16) int2fx((s32) r) / FADE_FRAMES;
+        *(s16 *) fade_deltas++ = (s16) int2fx((s32) g) / FADE_FRAMES;
+        *(s16 *) fade_deltas++ = (s16) int2fx((s32) b) / FADE_FRAMES;
     }
 }
 
-inline void fade(s16 *current_pal_ptr, s16 *fade_dlts_ptr, u32 pal_size) {
-    u16 *pal_ptr = BG_PALETTE;
+inline void fade(s16 current_pal[], s16 fade_deltas[], u32 pal_size) {
     s16 color, r, g, b;
     u32 p_index;
     for (p_index = 0; p_index < (pal_size / 2); ++p_index) {
         // Add delta and update current palette
-        r = *(s16 *) current_pal_ptr;
-        *(s16 *) current_pal_ptr++ = r + *(s16 *) fade_dlts_ptr++;
-        g = *(s16 *) current_pal_ptr;
-        *(s16 *) current_pal_ptr++ = g + *(s16 *) fade_dlts_ptr++;
-        b = *(s16 *) current_pal_ptr;
-        *(s16 *) current_pal_ptr++ = b + *(s16 *) fade_dlts_ptr++;
+        r = *(s16 *) current_pal;
+        *(s16 *) current_pal++ = r + *(s16 *) fade_deltas++;
+        g = *(s16 *) current_pal;
+        *(s16 *) current_pal++ = g + *(s16 *) fade_deltas++;
+        b = *(s16 *) current_pal;
+        *(s16 *) current_pal++ = b + *(s16 *) fade_deltas++;
 
         // Write color out
         color = (fx2int((s32) r) | (fx2int((s32) g) << 5) | (fx2int((s32) b) << 10));
-        *(u16 *) pal_ptr++ = color;
+        BG_PALETTE[p_index] = color;
     }
 }
 
@@ -239,8 +240,9 @@ int main(void) {
     // Set graphics mode
     SetMode(MODE_0 | BG0_ON | BG1_ON | BG2_ON | BG3_ON | OBJ_ON | OBJ_1D_MAP);
 
-    u16 frame_count = 0, x_scroll = 0, x_bg2 = 0, x_bg3 = 0, theta = 45;
-    u32 m_index = 0, fade_count = 0;
+    u32 m_index = 0, frame_count = 0, fade_count = 0;
+    u32 x_scroll = 0, x_bg2 = 0, x_bg3 = 0;
+    u32 theta = 45, theta_p = 45;
 
     buildFadeDeltas((u16 *) logo_pal_bin, fade_deltas, logo_pal_bin_size);
 
@@ -253,8 +255,9 @@ int main(void) {
             ++fade_count;
         }
 
-        updateSpritesPos(theta);
+        updateSpritesPos(theta, theta_p);
         --theta;
+        theta_p -= 3;
 
         if (sync_offset > 0) {
             --sync_offset;
