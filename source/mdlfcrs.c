@@ -18,7 +18,7 @@
 #define NUMBER_OF_SPRITES       21 * 2
 #define MAP_SIZE                0x800
 #define SCROLLER_ROW            18
-#define FADE_FRAMES             50
+#define FADE_FRAMES             (2 << 5)
 #define HIHAT_SYNC              1
 #define PATTERN_CHANGE_SYNC     2
 #define SPRITE_WIDTH            32
@@ -52,8 +52,8 @@ const u8 message[] = {
 
 u16 sync_offset = 0;
 OBJATTR obj_buffer[128];
-s16 current_palette[512 * 3];
-s16 fade_deltas[512 * 3];
+u16 current_palette[512 * 3];
+u16 fade_deltas[512 * 3];
 
 void initOAM() {
     u32 s_index, c_index = 0, palbank = 0;
@@ -78,17 +78,22 @@ inline void updateSpritesPos(u32 theta, u32 theta_p) {
     s16 x, y, offset;
     s32 sin, cos;
     for (s_index = 0; s_index < NUMBER_OF_SPRITES; s_index += 2) {
-        offset = s_index * 5;
+        offset = (s16) (s_index * 5);
         // Table has 512 entries, use bitmask for wrapping
         // Shift to get cosine
         sin = sin_lut[(theta + offset) & 0x1ff];
         cos = sin_lut[(theta_p + offset + 90) & 0x1ff];
-        // Subtract sprite width to keep sprites on screen
-        x = fx2int(fxmul(cos, int2fx(SCREEN_WIDTH - SPRITE_WIDTH)));
-        y = fx2int(fxmul(sin, int2fx(SCREEN_HEIGHT - SPRITE_WIDTH)));
-        // Scale x to [0, 240 - 32] and y to [0, 160 - 32]
-        x = ((x + SCREEN_WIDTH - SPRITE_WIDTH) >> 1);
-        y = ((y + SCREEN_HEIGHT - SPRITE_WIDTH) >> 1);
+
+        // Ranges are:
+        // [-208, 208] & [-128, 128]
+        x = (s16) fx2int(fxmul(cos, int2fx(SCREEN_WIDTH - SPRITE_WIDTH)));
+        y = (s16) fx2int(fxmul(sin, int2fx(SCREEN_HEIGHT - SPRITE_WIDTH)));
+
+        // Translate and scale so we get the following ranges:
+        // [0, 208] & [0, 128]
+        x = (s16) ((x + SCREEN_WIDTH - SPRITE_WIDTH) >> 1);
+        y = (s16) ((y + SCREEN_HEIGHT - SPRITE_WIDTH) >> 1);
+
         // Pyramid
         obj_buffer[s_index].attr0 = OBJ_16_COLOR | ATTR0_SQUARE | OBJ_Y(y);
         obj_buffer[s_index].attr1 = OBJ_SIZE(Sprite_32x32) | OBJ_X(x);
@@ -111,11 +116,11 @@ void createBgTilemap(u16 map_base, u32 first_chrs, u32 second_chrs) {
     for (ii = 0; ii < 12; ++ii) {
         for (jj = 0; jj < 16; ++jj) {
             if (ii & 1) {
-                *(u32 *) map_ptr++ = first_chrs;
-                *(u32 *) map_ptr++ = second_chrs;
+                *map_ptr++ = first_chrs;
+                *map_ptr++ = second_chrs;
             } else {
-                *(u32 *) map_ptr++ = second_chrs;
-                *(u32 *) map_ptr++ = first_chrs;
+                *map_ptr++ = second_chrs;
+                *map_ptr++ = first_chrs;
             }
         }
     }
@@ -129,39 +134,39 @@ inline void updateScrollText(u32 m_index) {
         if (message[m_index] == 0) {
             m_index = 0;
         }
-        *(u16 *) map_ptr++ = message[m_index++];
+        *map_ptr++ = message[m_index++];
     }
 }
 
-inline void buildFadeDeltas(u16 pal_bin[], s16 fade_deltas[], u32 pal_size) {
-    s16 color, r, g, b;
+inline void buildFadeDeltas(u16 pal_bin[], u16 fade_deltas[], u32 pal_size) {
+    u16 color, r, g, b;
     u32 p_index;
     for (p_index = 0; p_index < (pal_size / 2); ++p_index) {
-        color = *(u16 *) pal_bin++;
-        r = (color & 0x1f);
-        g = (color >> 5 & 0x1f);
-        b = (color >> 10 & 0x1f);
+        color = *pal_bin++;
+        r = (u16) (color & 0x1f);
+        g = (u16) (color >> 5 & 0x1f);
+        b = (u16) (color >> 10 & 0x1f);
 
-        *(s16 *) fade_deltas++ = (s16) int2fx((s32) r) / FADE_FRAMES;
-        *(s16 *) fade_deltas++ = (s16) int2fx((s32) g) / FADE_FRAMES;
-        *(s16 *) fade_deltas++ = (s16) int2fx((s32) b) / FADE_FRAMES;
+        *fade_deltas++ = (u16) (int2fx((s32) r) / FADE_FRAMES);
+        *fade_deltas++ = (u16) (int2fx((s32) g) / FADE_FRAMES);
+        *fade_deltas++ = (u16) (int2fx((s32) b) / FADE_FRAMES);
     }
 }
 
-inline void fade(s16 current_pal[], s16 fade_deltas[], u32 pal_size) {
-    s16 color, r, g, b;
+inline void fade(u16 current_pal[], u16 fade_deltas[], u32 pal_size) {
+    u16 color, r, g, b;
     u32 p_index;
     for (p_index = 0; p_index < (pal_size / 2); ++p_index) {
         // Add delta and update current palette
-        r = *(s16 *) current_pal;
-        *(s16 *) current_pal++ = r + *(s16 *) fade_deltas++;
-        g = *(s16 *) current_pal;
-        *(s16 *) current_pal++ = g + *(s16 *) fade_deltas++;
-        b = *(s16 *) current_pal;
-        *(s16 *) current_pal++ = b + *(s16 *) fade_deltas++;
+        r = *current_pal;
+        *current_pal++ = r + *fade_deltas++;
+        g = *current_pal;
+        *current_pal++ = g + *fade_deltas++;
+        b = *current_pal;
+        *current_pal++ = b + *fade_deltas++;
 
         // Write color out
-        color = (fx2int((s32) r) | (fx2int((s32) g) << 5) | (fx2int((s32) b) << 10));
+        color = (u16) (fx2uint((s32) r) | (fx2uint((s32) g) << 5) | (fx2uint((s32) b) << 10));
         BG_PALETTE[p_index] = color;
     }
 }
@@ -175,11 +180,14 @@ mm_word songEventHandler(mm_word msg, mm_word param) {
                     break;
                 case PATTERN_CHANGE_SYNC:
                     break;
+                default:
+                    break;
             }
             break;
         case MMCB_SONGFINISHED:
             break;
-            // A song has finished playing
+        default:
+            break;
     }
     return msg;
 }
@@ -201,7 +209,7 @@ int main(void) {
     u16 *map_ptr = (u16 *) MAP_BASE_ADR(30), *data_ptr = (u16 *) logo_map_bin;
     for (ii = 0; ii < 20; ++ii) {
         for (jj = 0; jj < 30; ++jj) {
-            *(u16 *) map_ptr++ = *(u16 *) data_ptr++;
+            *map_ptr++ = *data_ptr++;
         }
         map_ptr += 2;
     }
@@ -241,7 +249,7 @@ int main(void) {
     SetMode(MODE_0 | BG0_ON | BG1_ON | BG2_ON | BG3_ON | OBJ_ON | OBJ_1D_MAP);
 
     u32 m_index = 0, frame_count = 0, fade_count = 0;
-    u32 x_scroll = 0, x_bg2 = 0, x_bg3 = 0;
+    u16 x_scroll = 0, x_bg2 = 0, x_bg3 = 0;
     u32 theta = 45, theta_p = 45;
 
     buildFadeDeltas((u16 *) logo_pal_bin, fade_deltas, logo_pal_bin_size);
