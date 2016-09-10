@@ -11,7 +11,7 @@ inline s32 int2fx(s32 d) {
 
 // Convert a fixed point value to an unsigned integer.
 inline u32 fx2uint(s32 fx) {
-    return fx >> FIX_SHIFT;
+    return (u32) fx >> FIX_SHIFT;
 }
 
 // Convert a fixed point value to an signed integer.
