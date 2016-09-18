@@ -4,13 +4,10 @@
 #include "fixed.h"
 #include "lut.h"
 
-#include "font_bin.h"
-#include "logo_bin.h"
-#include "logo_map_bin.h"
-#include "logo_pal_bin.h"
-#include "background_bin.h"
-#include "sprites_bin.h"
-#include "sprites_pal_bin.h"
+#include "logo.h"
+#include "font.h"
+#include "background.h"
+#include "sprites.h"
 
 #include "music.h"
 #include "music_bin.h"
@@ -110,10 +107,10 @@ inline void copyBufferToOAM(const OBJATTR buf[]) {
     }
 }
 
-void createBgTilemap(u16 map_base, u32 first_chrs, u32 second_chrs) {
+void createBgTilemap(u32 map_base, u32 first_chrs, u32 second_chrs) {
     u16 ii, jj;
     u32 *map_ptr = (u32 *) MAP_BASE_ADR(map_base);
-    for (ii = 0; ii < 12; ++ii) {
+    for (ii = 0; ii < 16; ++ii) {
         for (jj = 0; jj < 16; ++jj) {
             if (ii & 1) {
                 *map_ptr++ = first_chrs;
@@ -198,15 +195,15 @@ int main(void) {
     irqEnable(IRQ_VBLANK);
 
     //Load gfx data
-    LZ77UnCompVram(&sprites_pal_bin, SPRITE_PALETTE);
-    LZ77UnCompVram(&font_bin, (void *) VRAM);
-    LZ77UnCompVram(&sprites_bin, SPRITE_GFX);
-    LZ77UnCompVram(&logo_bin, TILE_BASE_ADR(1));
-    RLUnCompVram(&background_bin, TILE_BASE_ADR(2));
+    LZ77UnCompVram(&spritesPal, SPRITE_PALETTE);
+    LZ77UnCompVram(&spritesTiles, SPRITE_GFX);
+    LZ77UnCompVram(&fontTiles, (void *) VRAM);
+    LZ77UnCompVram(&logoTiles, TILE_BASE_ADR(1));
+    RLUnCompVram(&backgroundTiles, TILE_BASE_ADR(2));
 
     //Load tilemap for logo (30x20)
     u16 ii, jj;
-    u16 *map_ptr = (u16 *) MAP_BASE_ADR(30), *data_ptr = (u16 *) logo_map_bin;
+    u16 *map_ptr = (u16 *) MAP_BASE_ADR(30), *data_ptr = (u16 *) logoMap;
     for (ii = 0; ii < 20; ++ii) {
         for (jj = 0; jj < 30; ++jj) {
             *map_ptr++ = *data_ptr++;
@@ -215,8 +212,8 @@ int main(void) {
     }
 
     // Generate checkerboard tilemaps for background
-    createBgTilemap((u16) 29, 0x00000000, 0x00020002);
-    createBgTilemap((u16) 28, 0x10011001, 0x10021002);
+    createBgTilemap(29, 0x00000000, 0x00020002);
+    createBgTilemap(28, 0x10011001, 0x10021002);
 
     // Clear font tilemap using tile 0x20 (space)
     *((u32 *) MAP_BASE_ADR(31)) = 0x00200020;
@@ -252,14 +249,14 @@ int main(void) {
     u16 x_scroll = 0, x_bg2 = 0, x_bg3 = 0;
     u32 theta = 45, theta_p = 45;
 
-    buildFadeDeltas((u16 *) logo_pal_bin, fade_deltas, logo_pal_bin_size);
+    buildFadeDeltas((u16 *) logoPal, fade_deltas, logoPalLen);
 
     while (true) {
         VBlankIntrWait();
         mmFrame();
 
         if (fade_count < FADE_FRAMES) {
-            fade(current_palette, fade_deltas, logo_pal_bin_size);
+            fade(current_palette, fade_deltas, logoPalLen);
             ++fade_count;
         }
 
