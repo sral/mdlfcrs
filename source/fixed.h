@@ -8,14 +8,10 @@
 #define FIX_SCALE           (1 << 8)
 #define FIX_SHIFT           8
 
-inline s32 int2fx(s32 d);
-
-inline u32 fx2uint(s32 fx);
-
-inline s32 fx2int(s32 fx);
-
-inline s32 fxmul(s32 fa, s32 fb);
-
-inline s32 fxdiv(s32 fa, s32 fb);
+extern s32 int2fx(s32 d);
+extern u32 fx2uint(s32 fx);
+extern s32 fx2int(s32 fx);
+extern s32 fxmul(s32 fa, s32 fb);
+extern s32 fxdiv(s32 fa, s32 fb);
 
 #endif //GBA_FIXED_H
