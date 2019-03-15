@@ -70,6 +70,7 @@ void initOAM() {
     }
 }
 
+extern void updateSpritesPos(u32 theta, u32 theta_p);
 inline void updateSpritesPos(u32 theta, u32 theta_p) {
     u32 s_index;
     s16 x, y, offset;
@@ -100,6 +101,7 @@ inline void updateSpritesPos(u32 theta, u32 theta_p) {
     }
 }
 
+extern void copyBufferToOAM(const OBJATTR buf[]);
 inline void copyBufferToOAM(const OBJATTR buf[]) {
     u32 oam_index;
     for (oam_index = 0; oam_index < 128; ++oam_index) {
@@ -123,6 +125,7 @@ void createBgTilemap(u32 map_base, u32 first_chrs, u32 second_chrs) {
     }
 }
 
+extern void updateScrollText(u32 m_index);
 inline void updateScrollText(u32 m_index) {
     u16 *map_ptr;
     map_ptr = (u16 *) MAP_BASE_ADR(31) + (SCROLLER_ROW * 32);
@@ -135,7 +138,7 @@ inline void updateScrollText(u32 m_index) {
     }
 }
 
-inline void buildFadeDeltas(u16 pal_bin[], u16 fade_deltas[], u32 pal_size) {
+void buildFadeDeltas(u16 pal_bin[], u16 fade_deltas[], u32 pal_size) {
     u16 color, r, g, b;
     u32 p_index;
     for (p_index = 0; p_index < (pal_size / 2); ++p_index) {
@@ -150,6 +153,7 @@ inline void buildFadeDeltas(u16 pal_bin[], u16 fade_deltas[], u32 pal_size) {
     }
 }
 
+extern void fade(u16 current_pal[], u16 fade_deltas[], u32 pal_size);
 inline void fade(u16 current_pal[], u16 fade_deltas[], u32 pal_size) {
     u16 color, r, g, b;
     u32 p_index;
