@@ -8,10 +8,29 @@
 #define FIX_SCALE           (1 << 8)
 #define FIX_SHIFT           8
 
-extern s32 int2fx(s32 d);
-extern u32 fx2uint(s32 fx);
-extern s32 fx2int(s32 fx);
-extern s32 fxmul(s32 fa, s32 fb);
-extern s32 fxdiv(s32 fa, s32 fb);
+// Convert an integer to fixed-point
+inline s32 int2fx(s32 d) {
+    return d << FIX_SHIFT;
+}
+
+// Convert a fixed point value to an unsigned integer
+inline u32 fx2uint(s32 fx)  {
+    return (u32) fx >> FIX_SHIFT;
+}
+
+// Convert a fixed point value to an signed integer
+inline s32 fx2int(s32 fx)  {
+    return fx >> FIX_SHIFT;
+}
+
+// Multiply two fixed point values
+inline s32 fxmul(s32 fa, s32 fb)  {
+    return (fa * fb) >> FIX_SHIFT;
+}
+
+// Divide two fixed point values
+inline s32 fxdiv(s32 fa, s32 fb)  {
+    return ((fa) * FIX_SCALE) / (fb);
+}
 
 #endif //GBA_FIXED_H
