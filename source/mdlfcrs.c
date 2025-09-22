@@ -225,7 +225,7 @@ int main(void) {
     // Init scroll register
     BG_OFFSET[0].x = 0;
     BG_OFFSET[0].y = 0;
-    BG_OFFSET[2].y = 0;
+    BG_OFFSET[2].x = 0;
     BG_OFFSET[2].y = 0;
     BG_OFFSET[3].x = 8;
     BG_OFFSET[3].y = 8;
